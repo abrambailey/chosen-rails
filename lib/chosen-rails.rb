@@ -1,5 +1,7 @@
 require 'chosen-rails/version'
 
+#modded by funkdified
+
 module Chosen
   module Rails
     if ::Rails.version < '3.1'
