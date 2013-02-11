@@ -7,17 +7,9 @@ $ = jQuery
 
 $.fn.extend({
   chosen: (options) ->
-    ua = navigator.userAgent.toLowerCase();
-
-    match = /(msie) ([\w.]+)/.exec( ua ) || [];
-    
-    browser =
-      name: match[ 1 ] || ""
-      version: match[ 2 ] || "0"
-      
     # Do no harm and return as soon as possible for unsupported browsers, namely IE6 and IE7
     # Continue on if running IE document type but in compatibility mode
-    return this if browser.name is "msie" and (browser.version is "6.0" or  (browser.version is "7.0" and document.documentMode is 7 ))
+    return this if $.browser.msie and ($.browser.version is "6.0" or  ($.browser.version is "7.0" and document.documentMode is 7 ))
     this.each((input_field) ->
       $this = $ this
       $this.data('chosen', new Chosen(this, options)) unless $this.hasClass "chzn-done"
@@ -110,7 +102,6 @@ class Chosen extends AbstractChosen
     else
       @container.click (evt) => evt.preventDefault() # gobble click of anchor
 
-
   search_field_disabled: ->
     @is_disabled = @form_field_jq[0].disabled
     if(@is_disabled)
@@ -183,10 +174,10 @@ class Chosen extends AbstractChosen
       @choices = 0
     else if not @is_multiple
       @selected_item.addClass("chzn-default").find("span").text(@default_text)
-      if @disable_search or @form_field.options.length <= @disable_search_threshold
-        @container.addClass "chzn-container-single-nosearch"
-      else
+      if @create_option and not @disable_search
         @container.removeClass "chzn-container-single-nosearch"
+      else if @disable_search or @form_field.options.length <= @disable_search_threshold 
+        @container.addClass "chzn-container-single-nosearch"
 
     content = ''
     for data in @results_data
@@ -293,7 +284,6 @@ class Chosen extends AbstractChosen
   search_results_mouseout: (evt) ->
     this.result_clear_highlight() if $(evt.target).hasClass "active-result" or $(evt.target).parents('.active-result').first()
 
-
   choices_click: (evt) ->
     evt.preventDefault()
     if( @active_field and not($(evt.target).hasClass "search-choice" or $(evt.target).parents('.search-choice').first) and not @results_showing )
@@ -348,6 +338,11 @@ class Chosen extends AbstractChosen
   result_select: (evt) ->
     if @result_highlight
       high = @result_highlight
+
+      if high.hasClass 'create-option'
+        this.select_create_option(@search_field.val())
+        return this.results_hide()
+      
       high_id = high.attr "id"
 
       this.result_clear_highlight()
@@ -412,6 +407,7 @@ class Chosen extends AbstractChosen
 
   winnow_results: ->
     this.no_results_clear()
+    this.create_option_clear()
 
     results = 0
 
@@ -419,7 +415,10 @@ class Chosen extends AbstractChosen
     regexAnchor = if @search_contains then "" else "^"
     regex = new RegExp(regexAnchor + searchText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), 'i')
     zregex = new RegExp(searchText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), 'i')
-
+    eregex = new RegExp('^' + searchText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&") + '$', 'i')
+    
+    exact_result = false
+    
     for option in @results_data
       if not option.disabled and not option.empty
         if option.group
@@ -432,7 +431,12 @@ class Chosen extends AbstractChosen
           if regex.test option.html
             found = true
             results += 1
+
+            if eregex.test option.html
+              exact_result = true
+            
           else if @enable_split_word_search and (option.html.indexOf(" ") >= 0 or option.html.indexOf("[") == 0)
+
             #TODO: replace this substitution of /\[\]/ with a list of characters to skip.
             parts = option.html.replace(/\[|\]/g, "").split(" ")
             if parts.length
@@ -460,6 +464,7 @@ class Chosen extends AbstractChosen
     if results < 1 and searchText.length
       this.no_results searchText
     else
+      this.show_create_option( searchText ) if @create_option and not exact_result and @persistent_create_option and searchText.length
       this.winnow_results_set_highlight()
 
   winnow_results_clear: ->
@@ -484,9 +489,32 @@ class Chosen extends AbstractChosen
   no_results: (terms) ->
     no_results_html = $('<li class="no-results">' + @results_none_found + ' "<span></span>"</li>')
     no_results_html.find("span").first().html(terms)
-
+    
     @search_results.append no_results_html
+ 
+    if @create_option
+      this.show_create_option( terms )
 
+  show_create_option: (terms) ->
+    create_option_html = $('<li class="create-option active-result"><a href="javascript:void(0);">' + @create_option_text + '</a>: "' + terms + '"</li>')
+    @search_results.append create_option_html
+    
+  create_option_clear: ->
+    @search_results.find(".create-option").remove()
+    
+  select_create_option: (terms) ->
+    if $.isFunction(@create_option)
+      @create_option.call this, terms
+    else
+      this.select_append_option {value: terms, text: terms}
+
+  select_append_option: ( options ) ->
+    option = $('<option />', options ).attr('selected', 'selected')
+    @form_field_jq.append option
+    @form_field_jq.trigger "liszt:updated"
+    #@active_field = false
+    @search_field.trigger('focus')
+  
   no_results_clear: ->
     @search_results.find(".no-results").remove()
 
