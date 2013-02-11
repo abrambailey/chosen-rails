@@ -1,8 +1,12 @@
 # Chosen for rails asset pipeline 
 
+Integrate Chosen javascript library with Rails asset pipeline
+
 ## Forked with Koenpunt's option adding (with custom callback)
 
-Option adding
+[Option adding](https://github.com/harvesthq/chosen/pull/166) 
+
+https://github.com/koenpunt/chosen
 
 You can specify a create_option option, which can be a boolean or callback function.
 
